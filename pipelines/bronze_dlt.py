@@ -1,60 +1,93 @@
+"""
+Ensure idempotent runs of your DLT pipeline in DEV:
+
+1. **Development Mode**: In the Databricks UI toggle your pipeline to Development Mode. This will drop and re-create managed tables on every pipeline update.
+
+2. **Alternate Schema**: Use separate `dev_bronze` and `prod_bronze` schemas to avoid conflicts.
+
+3. **Manual Cleanup (Once)**: If needed, run the following SQL commands just one time to clear stale managed tables:
+   DROP TABLE IF EXISTS principal_lab_db.dev_bronze.agents;
+   DROP TABLE IF EXISTS principal_lab_db.dev_bronze.customers;
+   DROP TABLE IF EXISTS principal_lab_db.dev_bronze.policies;
+   DROP TABLE IF EXISTS principal_lab_db.dev_bronze.claims;
+   DROP TABLE IF EXISTS principal_lab_db.dev_bronze.products;
+"""
 import dlt
 from pyspark.sql import functions as F
 
-# Default location of the CSV files on Databricks Volumes. The path can be
-# overridden with the `raw_path` pipeline configuration when creating the
-# pipeline.
-RAW_PATH = spark.conf.get(
-    "raw_path",
-    "/Volumes/principal_lab_dbx/landing/external_data_volume",
-)
+# --- Environment detection ---
+# Set via pipeline configuration: 'pipeline.schema' must be 'dev_bronze' or 'prod_bronze'
+SCHEMA = spark.conf.get("pipeline.schema", "dev_bronze")
+print(f"🏷️ Running DLT pipeline in schema: {SCHEMA}")
 
-# Tables are written to the DEV catalog inside the `bronze` schema. Update the
-# catalog or schema by changing these constants if needed.
-CATALOG = spark.conf.get("catalog", "DEV")
-SCHEMA = spark.conf.get("schema", "bronze")
+# --- Configuration ---
+RAW_PATH = "/Volumes/principal_lab_db/landing/operational_data"
+CATALOG  = "principal_lab_db"
 
-
+# Helper to form full table identifiers
 def full_name(table: str) -> str:
-    """Return the fully qualified table name."""
     return f"{CATALOG}.{SCHEMA}.{table}"
 
-
-def ingest(pattern: str, snapshot: bool = False):
-    """Load CSV files and enrich with metadata."""
-    df = (
-        spark.read.format("csv")
-        .option("header", True)
-        .load(f"{RAW_PATH}/{pattern}")
-        .withColumn("source_file", F.input_file_name())
+# Enrichment: add audit columns and optional snapshot_date
+def enrich(df, snapshot: bool):
+    df2 = (
+        df
         .withColumn("ingestion_ts", F.current_timestamp())
+        .withColumn("source_file", F.col("_metadata.file_path"))
     )
     if snapshot:
-        df = df.withColumn(
+        df2 = df2.withColumn(
             "snapshot_date",
             F.to_date(
-                F.regexp_extract(F.input_file_name(), r"/(\d{4}/\d{2}/\d{2})/", 1),
-                "yyyy/MM/dd",
-            ),
+                F.regexp_extract(
+                    F.col("_metadata.file_path"), r"/(\d{4}/\d{2}/\d{2})/", 1
+                ),
+                "yyyy/MM/dd"
+            )
         )
-    return df
+    return df2
 
-@dlt.table(name=full_name("agents"), comment="Raw agent snapshots")
+# --- DLT Table Definitions ---
+
+@dlt.table(name=full_name("agents"), comment="Bronze: agents snapshot")
+@dlt.expect_or_drop("valid_snapshot", F.col("snapshot_date").isNotNull())
 def agents_bronze():
-    return ingest("agents/*/*/*/*.csv", snapshot=True)
+    return enrich(
+        spark.read.option("header", True)
+            .csv(f"{RAW_PATH}/agents/*/*/*/*.csv"),
+        snapshot=True
+    )
 
-@dlt.table(name=full_name("customers"), comment="Raw customer snapshots")
+@dlt.table(name=full_name("customers"), comment="Bronze: customers snapshot")
+@dlt.expect_or_drop("valid_snapshot", F.col("snapshot_date").isNotNull())
 def customers_bronze():
-    return ingest("customers/*/*/*/*.csv", snapshot=True)
+    return enrich(
+        spark.read.option("header", True)
+            .csv(f"{RAW_PATH}/customers/*/*/*/*.csv"),
+        snapshot=True
+    )
 
-@dlt.table(name=full_name("policies"), comment="Raw policy snapshots")
+@dlt.table(name=full_name("policies"), comment="Bronze: policies snapshot")
+@dlt.expect_or_drop("valid_snapshot", F.col("snapshot_date").isNotNull())
 def policies_bronze():
-    return ingest("policies/*/*/*/*.csv", snapshot=True)
+    return enrich(
+        spark.read.option("header", True)
+            .csv(f"{RAW_PATH}/policies/*/*/*/*.csv"),
+        snapshot=True
+    )
 
-@dlt.table(name=full_name("products"), comment="Reference products table")
-def products_bronze():
-    return ingest("products/*.csv", snapshot=False)
-
-@dlt.table(name=full_name("claims"), comment="Claims table")
+@dlt.table(name=full_name("claims"), comment="Bronze: claims reference")
 def claims_bronze():
-    return ingest("claims/*.csv", snapshot=False)
+    return enrich(
+        spark.read.option("header", True)
+            .csv(f"{RAW_PATH}/claims/*.csv"),
+        snapshot=False
+    )
+
+@dlt.table(name=full_name("products"), comment="Bronze: products reference")
+def products_bronze():
+    return enrich(
+        spark.read.option("header", True)
+            .csv(f"{RAW_PATH}/products/*.csv"),
+        snapshot=False
+    )
