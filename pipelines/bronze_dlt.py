@@ -6,13 +6,13 @@ from pyspark.sql import functions as F
 # pipeline.
 RAW_PATH = spark.conf.get(
     "raw_path",
-    "/Volumes/principal_lab_dbx/landing/external_data_volume",
+    "/Volumes/principal_lab_db/landing/operational_data",
 )
 
 # Tables are written to the DEV catalog inside the `bronze` schema. Update the
 # catalog or schema by changing these constants if needed.
-CATALOG = spark.conf.get("catalog", "DEV")
-SCHEMA = spark.conf.get("schema", "bronze")
+CATALOG = spark.conf.get("catalog", "principal_lab_db")
+SCHEMA = spark.conf.get("schema", "dev_bronze")
 
 
 def full_name(table: str) -> str:
