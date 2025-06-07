@@ -11,55 +11,50 @@ RAW_PATH = spark.conf.get(
 
 # Tables are written to the DEV catalog inside the `bronze` schema. Update the
 # catalog or schema by changing these constants if needed.
-CATALOG = "DEV"
-SCHEMA = "bronze"
+CATALOG = spark.conf.get("catalog", "DEV")
+SCHEMA = spark.conf.get("schema", "bronze")
 
 
 def full_name(table: str) -> str:
     """Return the fully qualified table name."""
     return f"{CATALOG}.{SCHEMA}.{table}"
 
+
+def ingest(pattern: str, snapshot: bool = False):
+    """Load CSV files and enrich with metadata."""
+    df = (
+        spark.read.format("csv")
+        .option("header", True)
+        .load(f"{RAW_PATH}/{pattern}")
+        .withColumn("source_file", F.input_file_name())
+        .withColumn("ingestion_ts", F.current_timestamp())
+    )
+    if snapshot:
+        df = df.withColumn(
+            "snapshot_date",
+            F.to_date(
+                F.regexp_extract(F.input_file_name(), r"/(\d{4}/\d{2}/\d{2})/", 1),
+                "yyyy/MM/dd",
+            ),
+        )
+    return df
+
 @dlt.table(name=full_name("agents"), comment="Raw agent snapshots")
 def agents_bronze():
-    return (
-        spark.read.format("csv")
-            .option("header", True)
-            .load(f"{RAW_PATH}/agents/*.csv")
-            .withColumn("ingest_file", F.input_file_name())
-    )
+    return ingest("agents/*/*/*/*.csv", snapshot=True)
 
 @dlt.table(name=full_name("customers"), comment="Raw customer snapshots")
 def customers_bronze():
-    return (
-        spark.read.format("csv")
-            .option("header", True)
-            .load(f"{RAW_PATH}/customers/*.csv")
-            .withColumn("ingest_file", F.input_file_name())
-    )
+    return ingest("customers/*/*/*/*.csv", snapshot=True)
 
 @dlt.table(name=full_name("policies"), comment="Raw policy snapshots")
 def policies_bronze():
-    return (
-        spark.read.format("csv")
-            .option("header", True)
-            .load(f"{RAW_PATH}/policies/*.csv")
-            .withColumn("ingest_file", F.input_file_name())
-    )
+    return ingest("policies/*/*/*/*.csv", snapshot=True)
 
 @dlt.table(name=full_name("products"), comment="Reference products table")
 def products_bronze():
-    return (
-        spark.read.format("csv")
-            .option("header", True)
-            .load(f"{RAW_PATH}/products/products.csv")
-            .withColumn("ingest_file", F.input_file_name())
-    )
+    return ingest("products/*.csv", snapshot=False)
 
 @dlt.table(name=full_name("claims"), comment="Claims table")
 def claims_bronze():
-    return (
-        spark.read.format("csv")
-            .option("header", True)
-            .load(f"{RAW_PATH}/claims/claims.csv")
-            .withColumn("ingest_file", F.input_file_name())
-    )
+    return ingest("claims/*.csv", snapshot=False)
