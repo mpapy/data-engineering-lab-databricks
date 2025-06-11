@@ -14,21 +14,19 @@ Ensure idempotent runs of your DLT pipeline in DEV:
 """
 import dlt
 from pyspark.sql import functions as F
+from pyspark.sql.types import StructType, StructField, StringType, ArrayType, BooleanType, DateType
 
-# --- Environment detection ---
-# Set via pipeline configuration: 'pipeline.schema' must be 'dev_bronze' or 'prod_bronze'
+# --- ENVIRONMENT CONFIGURATION ---
 SCHEMA = spark.conf.get("pipeline.schema", "dev_bronze")
+CATALOG = "principal_lab_db"
+RAW_PATH = "/Volumes/principal_lab_db/landing/operational_data"  # raw input path  # path to Bronze CSVs
+
 print(f"🏷️ Running DLT pipeline in schema: {SCHEMA}")
 
-# --- Configuration ---
-RAW_PATH = "/Volumes/principal_lab_db/landing/operational_data"
-CATALOG  = "principal_lab_db"
-
-# Helper to form full table identifiers
 def full_name(table: str) -> str:
     return f"{CATALOG}.{SCHEMA}.{table}"
 
-# Enrichment: add audit columns and optional snapshot_date
+# Enrichment: add audit columns and snapshot_date
 def enrich(df, snapshot: bool):
     df2 = (
         df
@@ -39,55 +37,62 @@ def enrich(df, snapshot: bool):
         df2 = df2.withColumn(
             "snapshot_date",
             F.to_date(
-                F.regexp_extract(
-                    F.col("_metadata.file_path"), r"/(\d{4}/\d{2}/\d{2})/", 1
-                ),
+                F.regexp_extract(F.col("_metadata.file_path"), r"/(\d{4}/\d{2}/\d{2})/", 1),
                 "yyyy/MM/dd"
             )
         )
     return df2
 
-# --- DLT Table Definitions ---
+# JSON schemas
+metadata_schema = StructType([
+    StructField("languages", ArrayType(StringType()), True),
+    StructField("certifications", ArrayType(StringType()), True)
+])
+preferences_schema = StructType([
+    StructField("contact_methods", ArrayType(StringType()), True),
+    StructField("preferred_language", StringType(), True),
+    StructField("newsletter_opt_in", BooleanType(), True)
+])
+coverages_schema = ArrayType(StringType())
+
+# --- BRONZE TABLES ---
 
 @dlt.table(name=full_name("agents"), comment="Bronze: agents snapshot")
 @dlt.expect_or_drop("valid_snapshot", F.col("snapshot_date").isNotNull())
-def agents_bronze():
-    return enrich(
-        spark.read.option("header", True)
-            .csv(f"{RAW_PATH}/agents/*/*/*/*.csv"),
-        snapshot=True
-    )
+def bronze_agents():
+    df = spark.read.option("header", True).csv(f"{RAW_PATH}/agents/*/*/*/*.csv")
+    df = enrich(df, snapshot=True)
+    # parse metadata JSON
+    df = df.withColumn("metadata", F.from_json(F.col("metadata"), metadata_schema))
+    return df
 
 @dlt.table(name=full_name("customers"), comment="Bronze: customers snapshot")
 @dlt.expect_or_drop("valid_snapshot", F.col("snapshot_date").isNotNull())
-def customers_bronze():
-    return enrich(
-        spark.read.option("header", True)
-            .csv(f"{RAW_PATH}/customers/*/*/*/*.csv"),
-        snapshot=True
-    )
+def bronze_customers():
+    df = spark.read.option("header", True).csv(f"{RAW_PATH}/customers/*/*/*/*.csv")
+    df = enrich(df, snapshot=True)
+    df = df.withColumn("preferences", F.from_json(F.col("preferences"), preferences_schema))
+    return df
 
 @dlt.table(name=full_name("policies"), comment="Bronze: policies snapshot")
 @dlt.expect_or_drop("valid_snapshot", F.col("snapshot_date").isNotNull())
-def policies_bronze():
-    return enrich(
-        spark.read.option("header", True)
-            .csv(f"{RAW_PATH}/policies/*/*/*/*.csv"),
-        snapshot=True
-    )
+def bronze_policies():
+    df = spark.read.option("header", True).csv(f"{RAW_PATH}/policies/*/*/*/*.csv")
+    df = enrich(df, snapshot=True)
+    df = df.withColumn("coverages", F.from_json(F.col("coverages"), coverages_schema))
+    return df
 
 @dlt.table(name=full_name("claims"), comment="Bronze: claims reference")
-def claims_bronze():
-    return enrich(
-        spark.read.option("header", True)
-            .csv(f"{RAW_PATH}/claims/*.csv"),
-        snapshot=False
-    )
+def bronze_claims():
+    df = spark.read.option("header", True).csv(f"{RAW_PATH}/claims/*.csv")
+    return enrich(df, snapshot=False)
 
 @dlt.table(name=full_name("products"), comment="Bronze: products reference")
-def products_bronze():
-    return enrich(
-        spark.read.option("header", True)
-            .csv(f"{RAW_PATH}/products/*.csv"),
-        snapshot=False
-    )
+def bronze_products():
+    df = spark.read.option("header", True).csv(f"{RAW_PATH}/products/*.csv")
+    return enrich(df, snapshot=False)
+
+@dlt.table(name=full_name("premium_transactions"), comment="Bronze: premium transactions")
+def bronze_premiums():
+    df = spark.read.option("header", True).csv(f"{RAW_PATH}/premium/*.csv")
+    return enrich(df, snapshot=False)
