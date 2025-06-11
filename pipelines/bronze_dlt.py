@@ -60,24 +60,44 @@ coverages_schema = ArrayType(StringType())
 @dlt.table(name=full_name("agents"), comment="Bronze: agents snapshot")
 @dlt.expect_or_drop("valid_snapshot", F.col("snapshot_date").isNotNull())
 def bronze_agents():
-    df = spark.read.option("header", True).csv(f"{RAW_PATH}/agents/*/*/*/*.csv")
+    df = spark.read \
+        .option("header", True) \
+        .option("multiLine", True) \
+        .option("quote", '"') \
+        .option("escape", '"') \
+        .csv(f"{RAW_PATH}/agents/*/*/*/*.csv")
     df = enrich(df, snapshot=True)
-    # parse metadata JSON
-    df = df.withColumn("metadata", F.from_json(F.col("metadata"), metadata_schema))
-    return df
+    df = df.withColumn("metadata", F.from_json("metadata", metadata_schema))
+    df = df.withColumn("languages", F.col("metadata.languages")) \
+           .withColumn("certifications", F.col("metadata.certifications"))
+    return df.drop("metadata")
 
 @dlt.table(name=full_name("customers"), comment="Bronze: customers snapshot")
 @dlt.expect_or_drop("valid_snapshot", F.col("snapshot_date").isNotNull())
 def bronze_customers():
-    df = spark.read.option("header", True).csv(f"{RAW_PATH}/customers/*/*/*/*.csv")
+    df = spark.read \
+        .option("header", True) \
+        .option("multiLine", True) \
+        .option("quote", '"') \
+        .option("escape", '"') \
+        .csv(f"{RAW_PATH}/customers/*/*/*/*.csv")
     df = enrich(df, snapshot=True)
-    df = df.withColumn("preferences", F.from_json(F.col("preferences"), preferences_schema))
+    df = df.withColumn("preferences", F.from_json("preferences", preferences_schema))
+    df = df.withColumn("contact_methods", F.col("preferences.contact_methods")) \
+           .withColumn("preferred_language", F.col("preferences.preferred_language")) \
+           .withColumn("newsletter_opt_in", F.col("preferences.newsletter_opt_in")) \
+           .drop("preferences")
     return df
 
 @dlt.table(name=full_name("policies"), comment="Bronze: policies snapshot")
 @dlt.expect_or_drop("valid_snapshot", F.col("snapshot_date").isNotNull())
 def bronze_policies():
-    df = spark.read.option("header", True).csv(f"{RAW_PATH}/policies/*/*/*/*.csv")
+    df = spark.read \
+        .option("header", True) \
+        .option("multiLine", True) \
+        .option("quote", '"') \
+        .option("escape", '"') \
+        .csv(f"{RAW_PATH}/policies/*/*/*/*.csv")
     df = enrich(df, snapshot=True)
     df = df.withColumn("coverages", F.from_json(F.col("coverages"), coverages_schema))
     return df
