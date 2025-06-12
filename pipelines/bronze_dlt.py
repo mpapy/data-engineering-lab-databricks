@@ -16,30 +16,33 @@ import dlt
 from pyspark.sql import functions as F
 from pyspark.sql.types import StructType, StructField, StringType, ArrayType, BooleanType, DateType
 
-# --- ENVIRONMENT CONFIGURATION ---
-SCHEMA = spark.conf.get("pipeline.schema", "dev_bronze")
-CATALOG = "principal_lab_db"
-RAW_PATH = "/Volumes/principal_lab_db/landing/operational_data"  # raw input path  # path to Bronze CSVs
+# Dynamicky zjisti prostředí a nastav schema podle konfigurace pipeliny
+try:
+    ENV = spark.conf.get("pipeline.env")
+except Exception:
+    ENV = "dev"
 
-print(f"Running DLT pipeline in schema: {SCHEMA}")
+if ENV not in ["dev", "prod"]:
+    raise ValueError(f"Unsupported environment: {ENV}")
+
+CATALOG = "principal_lab_db"
+SCHEMA = f"{ENV}_bronze"
+RAW_PATH = "/Volumes/principal_lab_db/landing/operational_data"
+
+print(f"Running DLT pipeline in schema: {CATALOG}.{SCHEMA}")
 
 def full_name(table: str) -> str:
     return f"{CATALOG}.{SCHEMA}.{table}"
 
-# Enrichment: add audit columns and snapshot_date
 def enrich(df, snapshot: bool):
     df2 = (
-        df
-        .withColumn("ingestion_ts", F.current_timestamp())
-        .withColumn("source_file", F.col("_metadata.file_path"))
+        df.withColumn("ingestion_ts", F.current_timestamp())
+          .withColumn("source_file", F.col("_metadata.file_path"))
     )
     if snapshot:
         df2 = df2.withColumn(
             "snapshot_date",
-            F.to_date(
-                F.regexp_extract(F.col("_metadata.file_path"), r"/(\d{4}/\d{2}/\d{2})/", 1),
-                "yyyy/MM/dd"
-            )
+            F.to_date(F.regexp_extract(F.col("_metadata.file_path"), r"/(\d{4}/\d{2}/\d{2})/", 1), "yyyy/MM/dd")
         )
     return df2
 
@@ -55,16 +58,11 @@ preferences_schema = StructType([
 ])
 coverages_schema = ArrayType(StringType())
 
-# --- BRONZE TABLES ---
-
+#dle tables
 @dlt.table(name=full_name("agents"), comment="Bronze: agents snapshot")
 @dlt.expect_or_drop("valid_snapshot", F.col("snapshot_date").isNotNull())
 def bronze_agents():
-    df = spark.read \
-        .option("header", True) \
-        .option("multiLine", True) \
-        .option("quote", '"') \
-        .option("escape", '"') \
+    df = spark.read.option("header", True).option("multiLine", True).option("quote", '"').option("escape", '"') \
         .csv(f"{RAW_PATH}/agents/*/*/*/*.csv")
     df = enrich(df, snapshot=True)
     df = df.withColumn("metadata", F.from_json("metadata", metadata_schema))
@@ -75,11 +73,7 @@ def bronze_agents():
 @dlt.table(name=full_name("customers"), comment="Bronze: customers snapshot")
 @dlt.expect_or_drop("valid_snapshot", F.col("snapshot_date").isNotNull())
 def bronze_customers():
-    df = spark.read \
-        .option("header", True) \
-        .option("multiLine", True) \
-        .option("quote", '"') \
-        .option("escape", '"') \
+    df = spark.read.option("header", True).option("multiLine", True).option("quote", '"').option("escape", '"') \
         .csv(f"{RAW_PATH}/customers/*/*/*/*.csv")
     df = enrich(df, snapshot=True)
     df = df.withColumn("preferences", F.from_json("preferences", preferences_schema))
@@ -92,11 +86,7 @@ def bronze_customers():
 @dlt.table(name=full_name("policies"), comment="Bronze: policies snapshot")
 @dlt.expect_or_drop("valid_snapshot", F.col("snapshot_date").isNotNull())
 def bronze_policies():
-    df = spark.read \
-        .option("header", True) \
-        .option("multiLine", True) \
-        .option("quote", '"') \
-        .option("escape", '"') \
+    df = spark.read.option("header", True).option("multiLine", True).option("quote", '"').option("escape", '"') \
         .csv(f"{RAW_PATH}/policies/*/*/*/*.csv")
     df = enrich(df, snapshot=True)
     df = df.withColumn("coverages", F.from_json(F.col("coverages"), coverages_schema))
@@ -116,3 +106,4 @@ def bronze_products():
 def bronze_premiums():
     df = spark.read.option("header", True).csv(f"{RAW_PATH}/premium/*.csv")
     return enrich(df, snapshot=False)
+
