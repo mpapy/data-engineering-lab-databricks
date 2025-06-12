@@ -21,7 +21,7 @@ SCHEMA = spark.conf.get("pipeline.schema", "dev_bronze")
 CATALOG = "principal_lab_db"
 RAW_PATH = "/Volumes/principal_lab_db/landing/operational_data"  # raw input path  # path to Bronze CSVs
 
-print(f"🏷️ Running DLT pipeline in schema: {SCHEMA}")
+print(f"Running DLT pipeline in schema: {SCHEMA}")
 
 def full_name(table: str) -> str:
     return f"{CATALOG}.{SCHEMA}.{table}"
