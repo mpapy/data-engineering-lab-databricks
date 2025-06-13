@@ -102,4 +102,18 @@ def policies_silver():
 def claims_silver():
     return spark.readStream.table(f"{catalog}.{bronze_schema}.claims_bronze")
 
+@dlt.table(name="premium_transactions_bronze", comment="Bronze table for raw Premium Transactions data")
+def premium_transactions_bronze():
+    path = f"/Volumes/principal_lab_db/landing/operational_data/premium"
+    return (spark.readStream
+            .format("cloudFiles")
+            .option("cloudFiles.format", "csv")
+            .option("header", "true")
+            .load(path)
+            .select("*", col("_metadata.file_path").alias("source_file"))
+            .withColumn("ingestion_ts", current_timestamp())
+            .withColumn("snapshot_date",
+                        to_date(regexp_extract(col("source_file"),
+                                               r'/operational_data/[^/]+/(\d{4}/\d{2}/\d{2})/', 1),
+                                "yyyy/MM/dd")))
 
