@@ -16,94 +16,90 @@ import dlt
 from pyspark.sql import functions as F
 from pyspark.sql.types import StructType, StructField, StringType, ArrayType, BooleanType, DateType
 
-# Dynamicky zjisti prostředí a nastav schema podle konfigurace pipeliny
-try:
-    ENV = spark.conf.get("pipeline.env")
-except Exception:
-    ENV = "dev"
+import dlt
+from pyspark.sql import Window
+from pyspark.sql.functions import col, row_number
 
-if ENV not in ["dev", "prod"]:
-    raise ValueError(f"Unsupported environment: {ENV}")
+# Get environment and define source/target schema names
+env = spark.conf.get("pipeline.env")
+catalog = "principal_lab_db"
+bronze_schema = f"{env}_bronze"
+silver_schema = f"{env}_silver"
 
-CATALOG = "principal_lab_db"
-SCHEMA = f"{ENV}_bronze"
-RAW_PATH = "/Volumes/principal_lab_db/landing/operational_data"
+# (Optionally read lookup table for config – here we manually specify the config for clarity)
+keys_map = {
+    "customers": ["customer_id"],   # primary key for each table
+    "agents":    ["agent_id"],
+    "products":  ["product_id"],
+    "policies":  ["policy_id"],
+    "claims":    ["claim_id"]
+}
+scd_type_map = {
+    "customers": "SCD2",   # dimension table with Type 2 changes
+    "agents":    "SCD1",   # dimension table with Type 1 changes
+    "products":  "SCD1",   # dimension (assume Type 1)
+    "policies":  None,     # fact table (no SCD)
+    "claims":    None      # fact table (no SCD)
+}
 
-print(f"Running DLT pipeline in schema: {CATALOG}.{SCHEMA}")
+# SCD2 Dimension Example: Customers (Dimension with historical tracking)
+@dlt.view(name="customers_cleaned", comment="Streaming cleaned view of Customers data")
+def customers_cleaned():
+    # Read bronze as a stream
+    return spark.readStream.table(f"{catalog}.{bronze_schema}.customers_bronze")  # :contentReference[oaicite:8]{index=8}
 
-def full_name(table: str) -> str:
-    return f"{CATALOG}.{SCHEMA}.{table}"
+# Create empty target table for SCD2 output (customers_scd2), with schema managed by DLT
+dlt.create_streaming_table(
+    name="customers_scd2",
+    comment="Silver SCD2 dimension table for Customers (historical changes)",
+    table_properties={"quality": "silver"}  # example property, Unity Catalog will store in silver schema
+)
+# Apply CDC flow to capture Type 2 changes into customers_scd2
+dlt.create_auto_cdc_flow(
+    target="customers_scd2",
+    source="customers_cleaned",
+    keys=keys_map["customers"],            # e.g. ["customer_id"]
+    sequence_by="snapshot_date",           # use snapshot_date as the sequence for ordering changes
+    stored_as_scd_type=2                   # SCD Type 2 (keeps history)
+)
+ 
+# SCD1 Dimension Example: Agents (Dimension with no history, latest state only)
+@dlt.view(name="agents_cleaned", comment="Streaming cleaned view of Agents data")
+def agents_cleaned():
+    return spark.readStream.table(f"{catalog}.{bronze_schema}.agents_bronze")
 
-def enrich(df, snapshot: bool):
-    df2 = (
-        df.withColumn("ingestion_ts", F.current_timestamp())
-          .withColumn("source_file", F.col("_metadata.file_path"))
-    )
-    if snapshot:
-        df2 = df2.withColumn(
-            "snapshot_date",
-            F.to_date(F.regexp_extract(F.col("_metadata.file_path"), r"/(\d{4}/\d{2}/\d{2})/", 1), "yyyy/MM/dd")
-        )
-    return df2
+@dlt.table(name="agents_silver", comment="Silver table for latest Agents (SCD1)")
+def agents_silver():
+    df = dlt.read("agents_cleaned")  # read the cleaned stream (as a DataFrame)
+    # For each agent_id, keep only the record with max snapshot_date (latest snapshot)
+    window = Window.partitionBy("agent_id").orderBy(col("snapshot_date").desc())
+    latest_df = df.withColumn("rn", row_number().over(window)) \
+                  .filter(col("rn") == 1) \
+                  .drop("rn")
+    return latest_df
 
-# JSON schemas
-metadata_schema = StructType([
-    StructField("languages", ArrayType(StringType()), True),
-    StructField("certifications", ArrayType(StringType()), True)
-])
-preferences_schema = StructType([
-    StructField("contact_methods", ArrayType(StringType()), True),
-    StructField("preferred_language", StringType(), True),
-    StructField("newsletter_opt_in", BooleanType(), True)
-])
-coverages_schema = ArrayType(StringType())
+# SCD1 Dimension Example: Products (assume Products behave as Type 1 dimension)
+@dlt.view(name="products_cleaned", comment="Streaming cleaned view of Products data")
+def products_cleaned():
+    return spark.readStream.table(f"{catalog}.{bronze_schema}.products_bronze")
 
-#dle tables
-@dlt.table(name=full_name("agents"), comment="Bronze: agents snapshot")
-@dlt.expect_or_drop("valid_snapshot", F.col("snapshot_date").isNotNull())
-def bronze_agents():
-    df = spark.read.option("header", True).option("multiLine", True).option("quote", '"').option("escape", '"') \
-        .csv(f"{RAW_PATH}/agents/*/*/*/*.csv")
-    df = enrich(df, snapshot=True)
-    df = df.withColumn("metadata", F.from_json("metadata", metadata_schema))
-    df = df.withColumn("languages", F.col("metadata.languages")) \
-           .withColumn("certifications", F.col("metadata.certifications"))
-    return df.drop("metadata")
+@dlt.table(name="products_silver", comment="Silver table for latest Products (SCD1)")
+def products_silver():
+    df = dlt.read("products_cleaned")
+    window = Window.partitionBy("product_id").orderBy(col("snapshot_date").desc())
+    latest_df = df.withColumn("rn", row_number().over(window)) \
+                  .filter(col("rn") == 1) \
+                  .drop("rn")
+    return latest_df
 
-@dlt.table(name=full_name("customers"), comment="Bronze: customers snapshot")
-@dlt.expect_or_drop("valid_snapshot", F.col("snapshot_date").isNotNull())
-def bronze_customers():
-    df = spark.read.option("header", True).option("multiLine", True).option("quote", '"').option("escape", '"') \
-        .csv(f"{RAW_PATH}/customers/*/*/*/*.csv")
-    df = enrich(df, snapshot=True)
-    df = df.withColumn("preferences", F.from_json("preferences", preferences_schema))
-    df = df.withColumn("contact_methods", F.col("preferences.contact_methods")) \
-           .withColumn("preferred_language", F.col("preferences.preferred_language")) \
-           .withColumn("newsletter_opt_in", F.col("preferences.newsletter_opt_in")) \
-           .drop("preferences")
-    return df
+# Fact Table Example: Policies (Fact data with no SCD – append only)
+@dlt.table(name="policies_silver", comment="Silver table for Policies fact data")
+def policies_silver():
+    return spark.readStream.table(f"{catalog}.{bronze_schema}.policies_bronze")
 
-@dlt.table(name=full_name("policies"), comment="Bronze: policies snapshot")
-@dlt.expect_or_drop("valid_snapshot", F.col("snapshot_date").isNotNull())
-def bronze_policies():
-    df = spark.read.option("header", True).option("multiLine", True).option("quote", '"').option("escape", '"') \
-        .csv(f"{RAW_PATH}/policies/*/*/*/*.csv")
-    df = enrich(df, snapshot=True)
-    df = df.withColumn("coverages", F.from_json(F.col("coverages"), coverages_schema))
-    return df
+# Fact Table Example: Claims (Fact data with no SCD – append only)
+@dlt.table(name="claims_silver", comment="Silver table for Claims fact data")
+def claims_silver():
+    return spark.readStream.table(f"{catalog}.{bronze_schema}.claims_bronze")
 
-@dlt.table(name=full_name("claims"), comment="Bronze: claims reference")
-def bronze_claims():
-    df = spark.read.option("header", True).csv(f"{RAW_PATH}/claims/*.csv")
-    return enrich(df, snapshot=False)
-
-@dlt.table(name=full_name("products"), comment="Bronze: products reference")
-def bronze_products():
-    df = spark.read.option("header", True).csv(f"{RAW_PATH}/products/*.csv")
-    return enrich(df, snapshot=False)
-
-@dlt.table(name=full_name("premium_transactions"), comment="Bronze: premium transactions")
-def bronze_premiums():
-    df = spark.read.option("header", True).csv(f"{RAW_PATH}/premium/*.csv")
-    return enrich(df, snapshot=False)
 
