@@ -7,7 +7,7 @@
 # ——————————————————————————————
 #  ENV SETUP
 # ——————————————————————————————
-#env = spark.conf.get("pipeline.env") 
+env = spark.conf.get("pipeline.env") 
 catalog = "principal_lab_db"
 schema = f"{env}_silver"
 
