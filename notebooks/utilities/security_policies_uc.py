@@ -7,7 +7,10 @@
 # ——————————————————————————————
 #  ENV SETUP
 # ——————————————————————————————
-env = spark.conf.get("pipeline.env") 
+dbutils.widgets.text("pipeline_env", "test_marek")
+
+env = dbutils.widgets.get("pipeline_env")
+
 catalog = "principal_lab_db"
 schema = f"{env}_silver"
 
