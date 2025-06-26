@@ -1,55 +1,46 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC ### Setup
+# MAGIC ## Úvod
+# MAGIC V tomto cvičení si vyzkoušíte, jak pracovat s bezpečnostními politikami v
+# MAGIC Unity Catalogu. Každý krok je popsán níže a váš úkol je doplnit chybějící
+# MAGIC kód.
 
 # COMMAND ----------
 
 # ——————————————————————————————
-#  ENV SETUP
+#  Nastavení prostředí
 # ——————————————————————————————
-#dbutils.widgets.text("pipeline_env", "test_marek")
-
-env = dbutils.widgets.get("pipeline.env")
+# TODO: vytvořte widget `pipeline_env` a získejte hodnotu prostředí
+env = None  # dbutils.widgets.get("pipeline_env")
 
 catalog = "principal_lab_db"
 schema = f"{env}_silver"
 
-spark.sql(f"USE CATALOG {catalog}")
-spark.sql(f"USE SCHEMA {schema}")
+# TODO: nastavte aktivní katalog a schéma pomocí spark.sql
+
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Vytváření funkcí pro maskování
+# MAGIC ### Krok 1: Vytvoření funkcí pro maskování
+# MAGIC Pomocí SQL vytvořte dvě funkce `mask_email` a `mask_income` v katalogu
+# MAGIC a schématu nastaveném výše. Funkce budou později použity v maskovacích
+# MAGIC politikách.
 
 # COMMAND ----------
 
 # ——————————————————————————————
 #  CREATE POLICIES (email, income)
 # ——————————————————————————————
-# Masking policy využívá dříve vytvořenou funkci a říká, jak se má daný sloupec maskovat
-spark.sql(f"""
-CREATE OR REPLACE FUNCTION {catalog}.{schema}.mask_email(email STRING)
-RETURNS STRING
-RETURN CASE 
-    WHEN is_account_group_member('viewers') THEN email
-    ELSE '*** REDACTED ***'
-END;
-""")
+# TODO: definujte SQL příkazy pro vytvoření funkcí mask_email a mask_income
 
-spark.sql(f"""
-CREATE OR REPLACE FUNCTION {catalog}.{schema}.mask_income(income INTEGER)
-RETURNS STRING
-RETURN CASE 
-    WHEN is_account_group_member('viewers') THEN CAST(income AS STRING)
-    ELSE '-1'
-END;
-""")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Maskovávání sloupců
+# MAGIC ### Krok 2: Maskování sloupců
+# MAGIC Připravte seznam tabulek a sloupců, na které bude aplikována maskovací
+# MAGIC politika. Následně pro každý záznam proveďte příslušný SQL příkaz.
 
 # COMMAND ----------
 
@@ -62,32 +53,24 @@ masking_targets = [
     ("dim_customers_mask", "income", "mask_income")
 ]
 
-for table_name, column_name, function_name in masking_targets:
-    full_table = f"{catalog}.{schema}.{table_name}"
-    full_function = f"{catalog}.{schema}.{function_name}"
-    sql_stmt = f"""
-    ALTER TABLE {full_table}
-    ALTER COLUMN {column_name}
-    SET MASK {full_function}
-    """
-    spark.sql(sql_stmt)
+# TODO: pomocí cyklu aplikujte maskovací funkce na uvedené tabulky a sloupce
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Vytvareni funkci pro row filtering
+# MAGIC ### Krok 3: Vytvoření funkce pro row filtering
+# MAGIC Vytvořte SQL funkci, která bude sloužit k filtrování řádků podle regionu.
 
 # COMMAND ----------
 
-spark.sql(f""" 
-          CREATE OR REPLACE FUNCTION {catalog}.{schema}.rf_west_region(region STRING)
-          RETURN IF(IS_ACCOUNT_GROUP_MEMBER('data_admins'), true, region='West');
-          """)
+# TODO: definujte funkci `rf_west_region` pomocí příkazu CREATE OR REPLACE FUNCTION
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Aplikace row filteru na tabulky
+# MAGIC ### Krok 4: Aplikace row filteru na tabulky
+# MAGIC Připravte seznam tabulek, pro které chcete nastavit row filter, a pomocí
+# MAGIC SQL příkazu je aplikujte.
 
 # COMMAND ----------
 
@@ -96,15 +79,8 @@ spark.sql(f"""
 # ——————————————————————————————
 # Platí policy na konkrétní sloupce tabulek
 row_filter_target = [
-    ("dim_agents_mask","region","rf_west_region"),
+    ("dim_agents_mask", "region", "rf_west_region"),
 ]
 
-for table_name, column_name, function_name in row_filter_target:
-    full_table = f"{catalog}.{schema}.{table_name}"
-    full_function = f"{catalog}.{schema}.{function_name}"
-    sql_stmt = f"""
-    ALTER TABLE {full_table}
-    SET ROW FILTER {full_function}
-    ON ({column_name})
-    """
-    spark.sql(sql_stmt)
+# TODO: pomocí cyklu nastavte row filter pro uvedené tabulky
+
