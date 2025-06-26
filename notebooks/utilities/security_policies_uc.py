@@ -7,16 +7,15 @@
 # ——————————————————————————————
 #  ENV SETUP
 # ——————————————————————————————
-dbutils.widgets.text("pipeline_env", "test_marek")
+#dbutils.widgets.text("pipeline_env", "test_marek")
 
-env = dbutils.widgets.get("pipeline_env")
+env = dbutils.widgets.get("pipeline.env")
 
 catalog = "principal_lab_db"
 schema = f"{env}_silver"
 
 spark.sql(f"USE CATALOG {catalog}")
 spark.sql(f"USE SCHEMA {schema}")
-qualified = lambda name: f"{catalog}.{schema}.{name}"
 
 # COMMAND ----------
 
@@ -70,5 +69,42 @@ for table_name, column_name, function_name in masking_targets:
     ALTER TABLE {full_table}
     ALTER COLUMN {column_name}
     SET MASK {full_function}
+    """
+    spark.sql(sql_stmt)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Vytvareni funkci pro row filtering
+
+# COMMAND ----------
+
+spark.sql(f""" 
+          CREATE OR REPLACE FUNCTION {catalog}.{schema}.rf_west_region(region STRING)
+          RETURN IF(IS_ACCOUNT_GROUP_MEMBER('data_admins'), true, region='West');
+          """)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Aplikace row filteru na tabulky
+
+# COMMAND ----------
+
+# ——————————————————————————————
+#  APPLY ROW FILTER POLICIES TO TABLES
+# ——————————————————————————————
+# Platí policy na konkrétní sloupce tabulek
+row_filter_target = [
+    ("dim_agents_mask","region","rf_west_region"),
+]
+
+for table_name, column_name, function_name in row_filter_target:
+    full_table = f"{catalog}.{schema}.{table_name}"
+    full_function = f"{catalog}.{schema}.{function_name}"
+    sql_stmt = f"""
+    ALTER TABLE {full_table}
+    SET ROW FILTER {full_function}
+    ON ({column_name})
     """
     spark.sql(sql_stmt)
