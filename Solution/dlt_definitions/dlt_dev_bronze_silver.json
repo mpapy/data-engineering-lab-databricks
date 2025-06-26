@@ -1,0 +1,41 @@
+{
+    "id": "a4152dd4-89b2-4b20-ba90-ca9d461de938",
+    "pipeline_type": "WORKSPACE",
+    "development": true,
+    "continuous": false,
+    "channel": "CURRENT",
+    "photon": true,
+    "libraries": [
+        {
+            "notebook": {
+                "path": "/Repos/lab_dev/data-engineering-lab-databricks/Solution/pipelines/bronze_dlt"
+            }
+        },
+        {
+            "notebook": {
+                "path": "/Repos/lab_dev/data-engineering-lab-databricks/Solution/pipelines/silver_dlt"
+            }
+        }
+    ],
+    "name": "principal_lab-dev-bronze_silver-pipeline",
+    "serverless": true,
+    "catalog": "principal_lab_db",
+    "configuration": {
+        "pipeline.env": "dev"
+    },
+    "tags": [
+        {
+            "key": "enviroment",
+            "value": "dev"
+        },
+        {
+            "key": "department",
+            "value": "lab"
+        },
+        {
+            "key": "feature",
+            "value": "dlt_pipeline"
+        }
+    ],
+    "schema": "dev_bronze"
+}
