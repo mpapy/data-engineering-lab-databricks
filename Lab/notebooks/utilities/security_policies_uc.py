@@ -1,86 +1,68 @@
 # Databricks notebook source
-# MAGIC %md
-# MAGIC ## Úvod
-# MAGIC V tomto cvičení si vyzkoušíte, jak pracovat s bezpečnostními politikami v
-# MAGIC Unity Catalogu. Každý krok je popsán níže a váš úkol je doplnit chybějící
-# MAGIC kód.
+# ===========================================================
+# LAB ÚKOL: Maskování a Row Filtering
+# Cíl: Vytvořit vlastní maskovací funkce a aplikovat je na tabulky
+# ===========================================================
 
 # COMMAND ----------
 
-# ——————————————————————————————
-#  Nastavení prostředí
-# ——————————————————————————————
-# TODO: vytvořte widget `pipeline_env` a získejte hodnotu prostředí
-env = None  # dbutils.widgets.get("pipeline_env")
+# KROK 1: ENVIRONMENT SETUP
+# ÚKOL:
+# - Získej aktuální prostředí pomocí dbutils.widgets.get("pipeline.env")
+# - Nastav proměnné `catalog` a `schema`
+# - Použij spark.sql pro přepnutí na správný katalog a schéma
 
-catalog = "principal_lab_db"
-schema = f"{env}_silver"
-
-# TODO: nastavte aktivní katalog a schéma pomocí spark.sql
-
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### Krok 1: Vytvoření funkcí pro maskování
-# MAGIC Pomocí SQL vytvořte dvě funkce `mask_email` a `mask_income` v katalogu
-# MAGIC a schématu nastaveném výše. Funkce budou později použity v maskovacích
-# MAGIC politikách.
+# env = ...
+# catalog = ...
+# schema = ...
+# spark.sql(...)
+# spark.sql(...)
 
 # COMMAND ----------
 
-# ——————————————————————————————
-#  CREATE POLICIES (email, income)
-# ——————————————————————————————
-# TODO: definujte SQL příkazy pro vytvoření funkcí mask_email a mask_income
+# KROK 2: VYTVOŘENÍ MASKOVACÍCH FUNKCÍ
+# ÚKOL:
+# - Pomocí `CREATE FUNCTION` vytvoř dvě funkce:
+#   1. mask_email(email STRING) → zobrazí email jen skupině 'viewers'
+#   2. mask_income(income INT) → zobrazí příjem jen skupině 'viewers'
 
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### Krok 2: Maskování sloupců
-# MAGIC Připravte seznam tabulek a sloupců, na které bude aplikována maskovací
-# MAGIC politika. Následně pro každý záznam proveďte příslušný SQL příkaz.
+# spark.sql(f""" ... """)
 
 # COMMAND ----------
 
-# ——————————————————————————————
-#  APPLY MASKING POLICIES TO TABLES
-# ——————————————————————————————
-# Platí policy na konkrétní sloupce tabulek
-masking_targets = [
-    ("dim_agents_mask", "email", "mask_email"),
-    ("dim_customers_mask", "income", "mask_income")
-]
+# KROK 3: APLIKACE MASKOVACÍCH FUNKCÍ
+# ÚKOL:
+# - Pro každou tabulku a sloupec z níže uvedeného seznamu
+#   použij ALTER TABLE a APPLY MASK
 
-# TODO: pomocí cyklu aplikujte maskovací funkce na uvedené tabulky a sloupce
+# masking_targets = [
+#     ("dim_agents_mask", "email", "mask_email"),
+#     ("dim_customers_mask", "income", "mask_income")
+# ]
 
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### Krok 3: Vytvoření funkce pro row filtering
-# MAGIC Vytvořte SQL funkci, která bude sloužit k filtrování řádků podle regionu.
+# for table_name, column_name, function_name in masking_targets:
+#     ...
+#     spark.sql(sql_stmt)
 
 # COMMAND ----------
 
-# TODO: definujte funkci `rf_west_region` pomocí příkazu CREATE OR REPLACE FUNCTION
+# KROK 4: VYTVOŘENÍ ROW FILTER FUNKCE
+# ÚKOL:
+# - Vytvoř funkci `rf_west_region(region STRING)`
+# - Vrací `TRUE`, pokud je uživatel členem 'data_admins', jinak jen pokud je region 'West'
+
+# spark.sql(f""" ... """)
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ### Krok 4: Aplikace row filteru na tabulky
-# MAGIC Připravte seznam tabulek, pro které chcete nastavit row filter, a pomocí
-# MAGIC SQL příkazu je aplikujte.
+# KROK 5: APLIKACE ROW FILTERU
+# ÚKOL:
+# - Aplikuj vytvořený row filter na tabulku `dim_agents_mask` a sloupec `region`
 
-# COMMAND ----------
+# row_filter_target = [
+#     ("dim_agents_mask", "region", "rf_west_region")
+# ]
 
-# ——————————————————————————————
-#  APPLY ROW FILTER POLICIES TO TABLES
-# ——————————————————————————————
-# Platí policy na konkrétní sloupce tabulek
-row_filter_target = [
-    ("dim_agents_mask", "region", "rf_west_region"),
-]
-
-# TODO: pomocí cyklu nastavte row filter pro uvedené tabulky
-
+# for table_name, column_name, function_name in row_filter_target:
+#     ...
+#     spark.sql(sql_stmt)
