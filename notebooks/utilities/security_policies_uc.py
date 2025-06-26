@@ -7,7 +7,7 @@
 # ——————————————————————————————
 #  ENV SETUP
 # ——————————————————————————————
-dbutils.widgets.text("pipeline_env", "test_marek")
+dbutils.widgets.text("pipeline_env", "adam_test")
 
 env = dbutils.widgets.get("pipeline_env")
 
