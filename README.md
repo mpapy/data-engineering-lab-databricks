@@ -9,6 +9,7 @@ Tento repozitář slouží jako praktické prostředí pro budování moderní d
 ### 1. Příprava prostředí - všechno popsáno v OneNote
 - Data jsou již připravené ve složce **'volume_files'**.
 - Pokud chcete pracovat s novými, **ovšem chcete generovat více dat se stejnou strukturou, využijte 'generate_volume' složku, ve které je python kód, který vygeneruje nová data.**
+- **Projít si celý LAB!! OneNote notebook, který je v souborech.**
 - Ujisti se, že máš přístup do **Databricks workspace** s aktivovaným **Unity Catalogem**
 - Povol přístup do příslušného **katalogu** (`principal_lab_db`), kde se pipeline spouštějí
 ---
