@@ -92,9 +92,9 @@ data-engineering-lab-databricks/
 ├── dlt_definitions/           # Transformace: DLT notebooky nebo skripty
 ├── pipelines/                 # Konfigurace pipeline (.json/.yml)
 ├── workflows_definition/      # Orchestrace jobů (Databricks Jobs JSON)
-├── infrastructure/            # Katalogy, volumes, schémata (Terraform / SQL)
+├── infrastructure/            # Katalogy, volumes, schémata (SQL)
 ├── notebooks/                 # Vývojové nebo testovací notebooky
-├── Solution/                  # Výstupní reporty, prezentace, PBIX
+├── dashboards/                  # Výstupní reporty, prezentace, PBIX
 └── README.md
 ```
 
