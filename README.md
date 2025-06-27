@@ -121,5 +121,4 @@ Nejdůležitější odkazy:
 - Databricks Certification: https://www.databricks.com/learn/certification/data-engineer-associate
 - Přihlášení na nákup certifikace: https://www.webassessor.com/
 - Příprava na zkoušku: https://www.examtopics.com/exams/databricks/certified-data-engineer-associate/
-- ![image](https://github.com/user-attachments/assets/dc252d8a-9108-45bf-a1dc-1b88bb859d0f)
 
