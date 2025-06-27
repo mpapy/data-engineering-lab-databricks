@@ -81,7 +81,7 @@ for table_name, column_name, function_name in masking_targets:
 
 spark.sql(f""" 
           CREATE OR REPLACE FUNCTION {catalog}.{schema}.rf_west_region(region STRING)
-          RETURN IF(IS_ACCOUNT_GROUP_MEMBER('data_admins'), true, region='West');
+          RETURN IF(IS_ACCOUNT_GROUP_MEMBER('viewers'), true, region='West');
           """)
 
 # COMMAND ----------
