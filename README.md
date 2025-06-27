@@ -1,4 +1,4 @@
-# 🧠 Data Engineering Lab – Databricks
+# Data Engineering Lab – Databricks
 
 Tento repozitář slouží jako praktické prostředí pro budování moderní datové platformy pomocí **Databricks**, **Delta Live Tables**, **Unity Catalogu**, **streamingu** a **CI/CD principů**. Cílem je vytvořit Lab pro naučení se Databricks.
 
@@ -41,7 +41,7 @@ def dim_customers():
 
 ---
 
-### 4. 🔁 Spuštění pipeline
+### 4. Spuštění pipeline
 
 #### Možnost A – přes UI
 - Otevři Databricks UI → Workflows → Delta Live Tables → +Create pipeline
@@ -56,7 +56,7 @@ databricks pipelines start --name silver_layer_pipeline
 
 ---
 
-### 5. 🔄 Automatizace (Workflows)
+### 5. Automatizace (Workflows)
 - Vytvářej orchestraci v [`workflows_definition/`](./workflows_definition)
 - Použij `databricks jobs create` pro automatizované joby
 - Např. JSON definice pipeline s triggerem:
@@ -74,7 +74,7 @@ databricks pipelines start --name silver_layer_pipeline
 
 ---
 
-### 6. 🔐 Governance a Masking
+### 6. Governance a Masking
 - Masking policies a funkce definuj v SQL nebo Pythonu
 - Používej Unity Catalog maskovací funkce:
 ```sql
@@ -85,7 +85,7 @@ RETURN CASE WHEN is_account_group_member('viewers') THEN email ELSE '***' END;
 
 ---
 
-## 📁 Struktura repozitáře
+## Struktura repozitáře
 
 ```
 data-engineering-lab-databricks/
@@ -100,7 +100,7 @@ data-engineering-lab-databricks/
 
 ---
 
-## 🛠️ Požadavky
+## Požadavky
 
 - ✅ Databricks workspace (s Unity Catalog)
 - ✅ Git + GitHub (verzování notebooků)
@@ -112,14 +112,14 @@ data-engineering-lab-databricks/
 ![image](https://github.com/user-attachments/assets/1c18a3d4-0376-42c5-a581-a60863c7c648)
 
 Nejdůležitější odkazy:
-Základní stránka: https://www.databricks.com/
-Partner: https://partner-academy.databricks.com/
-Udemy: https://principal.udemy.com/organization/search/?src=ukw&q=databricks
-OneNote: Certification, RoadMap, Procedure
-Medium: https://medium.com/the-data-therapy/how-i-scored-95-on-the-databricks-data-engineer-associate-certification-a-comprehensive-guide-c4ea47485a05
-Databricks training: https://www.databricks.com/learn/training/home
-Databricks Certification: https://www.databricks.com/learn/certification/data-engineer-associate
-Přihlášení na nákup certifikace: https://www.webassessor.com/
-Příprava na zkoušku: https://www.examtopics.com/exams/databricks/certified-data-engineer-associate/
-![image](https://github.com/user-attachments/assets/dc252d8a-9108-45bf-a1dc-1b88bb859d0f)
+- Základní stránka: https://www.databricks.com/
+- Partner: https://partner-academy.databricks.com/
+- Udemy: https://principal.udemy.com/organization/search/?src=ukw&q=databricks
+- OneNote: Certification, RoadMap, Procedure
+- Medium: https://medium.com/the-data-therapy/how-i-scored-95-on-the-databricks-data-engineer-associate-certification-a-comprehensive-guide-c4ea47485a05
+- Databricks training: https://www.databricks.com/learn/training/home
+- Databricks Certification: https://www.databricks.com/learn/certification/data-engineer-associate
+- Přihlášení na nákup certifikace: https://www.webassessor.com/
+- Příprava na zkoušku: https://www.examtopics.com/exams/databricks/certified-data-engineer-associate/
+- ![image](https://github.com/user-attachments/assets/dc252d8a-9108-45bf-a1dc-1b88bb859d0f)
 
