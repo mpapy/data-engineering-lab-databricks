@@ -1,0 +1,128 @@
+resources:
+  jobs:
+    prod_lab_all_layers:
+      name: prod-lab-all-layers
+      description: >-
+        #  Databricks Workflow – ETL Pipeline Overview
+
+
+        Tento workflow obsahuje čtyři hlavní kroky zpracování dat.
+
+
+        ---
+
+
+        ## 1. Bronze Layer – Ingestion
+
+
+        Načítání surových dat z ADLS storage pomocí **DLT streaming pipelines**.
+
+
+        - Zdroj: soubory v Azure Data Lake Storage (CSV)
+
+        - Data obohaceny o technické sloupce
+
+        - Výstup: fyzické tabulky ve vrstvě **Bronze**
+
+
+        ---
+
+
+        ##  2. Silver Layer – Cleaning & Historization
+
+
+        Čištění a strukturování dat pomocí **DLT transformačních kroků**.
+
+
+        - Odstranění nevalidních záznamů, datové typy, formátování
+
+        - Implementace **SCD2 (Slowly Changing Dimension Type 2)** pro dimenze
+
+        - Výstup: strukturované, historizované tabulky ve vrstvě **Silver**
+
+
+        ---
+
+
+        ##  3. Governance Layer – Data Security
+
+
+        Tvorba řízených datových tabulek s aplikací **data masking** a
+        **row-level security**.
+
+
+        - Maskovací a row filter funkce registrované v Unity Catalogu
+
+        - Přístup je řízený dle uživatelských skupin a rolí
+
+
+        ---
+
+
+        ##  4. Reporting Layer – Presentation Views
+
+
+        Finální výstupní vrstva připravená pro reportingové nástroje (Power BI,
+        Tableau apod.).
+
+
+        - Tvorba **SQL pohledů (views)** nad zabezpečenými tabulkami
+
+        - Obsahuje pouze agregovaná, čistá a schválená data
+
+
+        ---
+      email_notifications:
+        on_failure:
+          - marek.papay@principal.cz
+          - ondrej.mikulec@principal.cz
+        on_duration_warning_threshold_exceeded:
+          - marek.papay@principal.cz
+          - ondrej.mikulec@principal.cz
+      webhook_notifications:
+        on_failure:
+          - id: 8ef7d475-3d41-45a7-b99b-306d8f2563fb
+        on_duration_warning_threshold_exceeded:
+          - id: 8ef7d475-3d41-45a7-b99b-306d8f2563fb
+      timeout_seconds: 600
+      health:
+        rules:
+          - metric: RUN_DURATION_SECONDS
+            op: GREATER_THAN
+            value: 300
+      schedule:
+        quartz_cron_expression: 5 0 8 * * ?
+        timezone_id: Europe/Belgrade
+        pause_status: PAUSED
+      tasks:
+        - task_key: dlt_broze_silver_pipeline
+          pipeline_task:
+            pipeline_id: a4152dd4-89b2-4b20-ba90-ca9d461de938
+            full_refresh: false
+        - task_key: create_mask_tables
+          depends_on:
+            - task_key: dlt_broze_silver_pipeline
+          notebook_task:
+            notebook_path: /Repos/lab_prod/data-engineering-lab-databricks/Solution/pipelines/silver_masking
+            source: WORKSPACE
+        - task_key: uc_data_policies
+          depends_on:
+            - task_key: create_mask_tables
+          notebook_task:
+            notebook_path: /Repos/lab_prod/data-engineering-lab-databricks/Solution/notebooks/utilities/security_policies_uc
+            source: WORKSPACE
+        - task_key: test_gold_view
+          depends_on:
+            - task_key: uc_data_policies
+          notebook_task:
+            notebook_path: /Repos/lab_prod/data-engineering-lab-databricks/Solution/pipelines/gold_dlt
+            source: WORKSPACE
+      tags:
+        department: dwh
+        enviroment: prod
+      queue:
+        enabled: true
+      parameters:
+        - name: pipeline.env
+          default: prod
+      performance_target: PERFORMANCE_OPTIMIZED
